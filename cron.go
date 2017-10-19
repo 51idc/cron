@@ -43,25 +43,29 @@ type Entry struct {
 
 	// The next time the job will run. This is the zero time if Cron has not been
 	// started or this entry's schedule is unsatisfiable
-	Next time.Time
+	Next     time.Time
 
 	// The last time this job was run. This is the zero time if the job has never
 	// been run.
-	Prev time.Time
+	Prev     time.Time
 
 	// The Job to run.
-	Job Job
+	Job      Job
 
 	// Conturrent
-	Sema *SemaOfCron
+	Sema     *SemaOfCron
 }
 
 // byTime is a wrapper for sorting the entry array by time
 // (with zero time at the end).
 type byTime []*Entry
 
-func (s byTime) Len() int      { return len(s) }
-func (s byTime) Swap(i, j int) { s[i], s[j] = s[j], s[i] }
+func (s byTime) Len() int {
+	return len(s)
+}
+func (s byTime) Swap(i, j int) {
+	s[i], s[j] = s[j], s[i]
+}
 func (s byTime) Less(i, j int) bool {
 	// Two zero times should return false.
 	// Otherwise, zero is "greater" than any other time.
@@ -89,7 +93,9 @@ func New() *Cron {
 // A wrapper that turns a func() into a cron.Job
 type FuncJob func()
 
-func (f FuncJob) Run() { f() }
+func (f FuncJob) Run() {
+	f()
+}
 
 // AddFunc adds a func to the Cron to be run on the given schedule.
 func (c *Cron) AddFunc(spec string, cmd func()) error {
@@ -191,7 +197,7 @@ func (c *Cron) run() {
 
 		select {
 		case now = <-time.After(effective.Sub(now)):
-			// Run every entry whose next time was this effective time.
+		// Run every entry whose next time was this effective time.
 			for _, e := range c.entries {
 				if e.Next != effective {
 					break
@@ -199,7 +205,7 @@ func (c *Cron) run() {
 
 				// Do its Job
 				if e.Sema.Ctrl {
-					go func() {
+					go func(e *Entry) {
 						// Concurrent Control
 						if !e.Sema.Sema.TryAcquire() {
 							return
@@ -207,9 +213,11 @@ func (c *Cron) run() {
 						defer e.Sema.Sema.Release()
 
 						e.Job.Run()
-					}()
+					}(e)
 				} else {
-					go e.Job.Run()
+					go func(e *Entry) {
+						e.Job.Run()
+					}(e)
 				}
 
 				e.Prev = e.Next
